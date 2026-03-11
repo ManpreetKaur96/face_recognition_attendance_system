@@ -1,5 +1,7 @@
 # Face Recognition Attendance System
 
+This project demonstrates the practical use of deep learning, computer vision, and web-based interfaces to build an intelligent and automated attendance management system.
+
 A **Face Recognition Attendance System** developed using **Python, Streamlit, OpenCV, and FaceNet**.
 
 This system automatically records employee attendance using **real-time face recognition through a webcam**.
@@ -198,5 +200,6 @@ This project is created for **learning and educational purposes**.
 **Manpreet Kaur**
 Data Science & Machine Learning Enthusiast
 Interested in **Computer Vision, AI Applications, and Web-based ML Systems**
+
 
 
