@@ -15,25 +15,22 @@ cursor = conn.cursor()
 
 def mark_attendance():
 
-    # Load registered employees
     cursor.execute("SELECT employee_id, embedding FROM employees")
     data = cursor.fetchall()
 
     if len(data) == 0:
-        st.warning("No registered employees found.")
+        st.warning("No employees registered")
         return False
 
     known = [(d[0], np.frombuffer(d[1], dtype=np.float32)) for d in data]
 
-    recognized = False
-
-    # ---------------- CLOUD MODE ----------------
+    # CLOUD MODE
     if os.environ.get("STREAMLIT_SERVER_PORT"):
 
-        image = st.camera_input("Capture Face for Attendance")
+        image = st.camera_input("Capture face")
 
         if image is None:
-            st.warning("Please capture an image")
+            st.warning("Please capture image")
             return False
 
         file_bytes = np.asarray(bytearray(image.read()), dtype=np.uint8)
@@ -42,7 +39,7 @@ def mark_attendance():
         face = detect_face(frame)
 
         if face is None:
-            st.warning("No face detected")
+            st.warning("Face not detected")
             return False
 
         emb = get_embedding(face)
@@ -69,31 +66,30 @@ def mark_attendance():
                     )
 
                     conn.commit()
-                    st.success(f"✅ Attendance marked for {emp_id}")
+                    st.success(f"Attendance marked for {emp_id}")
 
                 else:
-                    st.warning(f"⚠ Attendance already marked for {emp_id}")
+                    st.warning(f"Attendance already marked for {emp_id}")
 
-                recognized = True
-                break
+                return True
 
-    # ---------------- LOCAL MODE ----------------
+        st.error("Face not recognized")
+        return False
+
+    # LOCAL MODE
     else:
 
         cap = cv2.VideoCapture(0)
 
         if not cap.isOpened():
-            st.error("Camera not opening ❌")
+            st.error("Camera not opening")
             return False
 
-        stframe = st.empty()
-
-        while cap.isOpened():
+        while True:
 
             ret, frame = cap.read()
 
             if not ret:
-                st.error("Failed to read camera")
                 break
 
             frame = cv2.flip(frame, 1)
@@ -126,20 +122,22 @@ def mark_attendance():
                             )
 
                             conn.commit()
-                            st.success(f"✅ Attendance marked for {emp_id}")
+                            st.success(f"Attendance marked for {emp_id}")
 
                         else:
-                            st.warning(f"⚠ Attendance already marked for {emp_id}")
+                            st.warning(f"Attendance already marked for {emp_id}")
 
-                        recognized = True
-                        break
+                        cap.release()
+                        cv2.destroyAllWindows()
 
-            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            stframe.image(rgb, channels="RGB")
+                        return True
 
-            if recognized:
+            cv2.imshow("Attendance", frame)
+
+            if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
         cap.release()
+        cv2.destroyAllWindows()
 
-    return recognized
+        return False

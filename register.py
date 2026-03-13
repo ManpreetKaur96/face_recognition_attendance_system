@@ -15,21 +15,20 @@ def register_employee(emp_id, name, address, email, dob):
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
 
-    # Check if employee already exists
     cursor.execute("SELECT * FROM employees WHERE employee_id=?", (emp_id,))
     if cursor.fetchone():
         st.error("Employee ID already exists!")
         conn.close()
         return
 
-    st.info("📷 Camera starting... Look straight at camera")
-
     embeddings = []
 
-    # ---------------- CLOUD MODE ----------------
+    # CLOUD MODE
     if os.environ.get("STREAMLIT_SERVER_PORT"):
 
-        image = st.camera_input("Capture Face")
+        st.info("Capture face using browser camera")
+
+        image = st.camera_input("Take a photo")
 
         if image is None:
             st.warning("Please capture an image")
@@ -41,29 +40,27 @@ def register_employee(emp_id, name, address, email, dob):
         face = detect_face(frame)
 
         if face is None:
-            st.error("Face not detected")
+            st.error("No face detected")
             return
 
         embedding = get_embedding(face)
 
         if embedding is None:
-            st.error("Embedding generation failed")
+            st.error("Embedding failed")
             return
 
-        embeddings = [embedding] * 15   # simulate multiple captures
+        embeddings = [embedding] * 15
 
-
-    # ---------------- LOCAL MODE ----------------
+    # LOCAL MODE
     else:
 
         cap = cv2.VideoCapture(0)
 
         if not cap.isOpened():
-            st.error("Unable to access camera.")
+            st.error("Unable to access camera")
             return
 
         count = 0
-
         time.sleep(2)
 
         while count < 15:
@@ -93,9 +90,7 @@ def register_employee(emp_id, name, address, email, dob):
                         2
                     )
 
-                    time.sleep(0.3)
-
-            cv2.imshow("Register Face - Press Q to Cancel", frame)
+            cv2.imshow("Register Face", frame)
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
@@ -104,10 +99,8 @@ def register_employee(emp_id, name, address, email, dob):
         cv2.destroyAllWindows()
 
         if len(embeddings) < 10:
-            st.error("Face not captured properly. Please try again.")
+            st.error("Face capture failed")
             return
-
-    # ---------------- SAVE TO DATABASE ----------------
 
     mean_embedding = np.mean(embeddings, axis=0)
 
@@ -135,4 +128,4 @@ def register_employee(emp_id, name, address, email, dob):
     conn.commit()
     conn.close()
 
-    st.success("✅ Employee Registered Successfully!")
+    st.success("Employee registered successfully")
