@@ -135,4 +135,4 @@ def register_employee(emp_id, name, address, email, dob):
     conn.commit()
     conn.close()
 
-    st.success("✅ Employee Registered Successfully!")v
+    st.success("✅ Employee Registered Successfully!")
