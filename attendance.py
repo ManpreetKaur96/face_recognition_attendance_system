@@ -1,22 +1,21 @@
+import os
+import sqlite3
 import cv2
 import numpy as np
 import streamlit as st
 from datetime import datetime
 
-from database.db import cursor, conn
 from detector import detect_face
 from embedding import get_embedding
 from similarity import cosine_similarity
 
+conn = sqlite3.connect("database.db", check_same_thread=False)
+cursor = conn.cursor()
+
 
 def mark_attendance():
 
-    cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-
-    if not cap.isOpened():
-        st.error("Camera not opening ❌")
-        return False
-
+    # Load registered employees
     cursor.execute("SELECT employee_id, embedding FROM employees")
     data = cursor.fetchall()
 
@@ -24,67 +23,123 @@ def mark_attendance():
         st.warning("No registered employees found.")
         return False
 
-    # Convert stored embeddings from BLOB to numpy array
     known = [(d[0], np.frombuffer(d[1], dtype=np.float32)) for d in data]
 
-    stframe = st.empty()
     recognized = False
 
-    while cap.isOpened():
+    # ---------------- CLOUD MODE ----------------
+    if os.environ.get("STREAMLIT_SERVER_PORT"):
 
-        ret, frame = cap.read()
+        image = st.camera_input("Capture Face for Attendance")
 
-        if not ret:
-            st.error("Failed to read camera")
-            break
+        if image is None:
+            st.warning("Please capture an image")
+            return False
 
-        frame = cv2.flip(frame, 1)
+        file_bytes = np.asarray(bytearray(image.read()), dtype=np.uint8)
+        frame = cv2.imdecode(file_bytes, 1)
 
         face = detect_face(frame)
 
-        if face is not None:
+        if face is None:
+            st.warning("No face detected")
+            return False
 
-            emb = get_embedding(face)
+        emb = get_embedding(face)
 
-            for emp_id, known_emb in known:
+        for emp_id, known_emb in known:
 
-                sim = cosine_similarity(emb, known_emb)
+            sim = cosine_similarity(emb, known_emb)
 
-                if sim > 0.75:
+            if sim > 0.75:
 
-                    today = datetime.now().strftime('%Y-%m-%d')
-                    time_now = datetime.now().strftime('%H:%M:%S')
+                today = datetime.now().strftime('%Y-%m-%d')
+                time_now = datetime.now().strftime('%H:%M:%S')
+
+                cursor.execute(
+                    "SELECT * FROM attendance WHERE employee_id=? AND date=?",
+                    (emp_id, today)
+                )
+
+                if not cursor.fetchone():
 
                     cursor.execute(
-                        "SELECT * FROM attendance WHERE employee_id=? AND date=?",
-                        (emp_id, today)
+                        "INSERT INTO attendance VALUES (NULL,?,?,?)",
+                        (emp_id, today, time_now)
                     )
 
-                    if not cursor.fetchone():
+                    conn.commit()
+                    st.success(f"✅ Attendance marked for {emp_id}")
+
+                else:
+                    st.warning(f"⚠ Attendance already marked for {emp_id}")
+
+                recognized = True
+                break
+
+    # ---------------- LOCAL MODE ----------------
+    else:
+
+        cap = cv2.VideoCapture(0)
+
+        if not cap.isOpened():
+            st.error("Camera not opening ❌")
+            return False
+
+        stframe = st.empty()
+
+        while cap.isOpened():
+
+            ret, frame = cap.read()
+
+            if not ret:
+                st.error("Failed to read camera")
+                break
+
+            frame = cv2.flip(frame, 1)
+
+            face = detect_face(frame)
+
+            if face is not None:
+
+                emb = get_embedding(face)
+
+                for emp_id, known_emb in known:
+
+                    sim = cosine_similarity(emb, known_emb)
+
+                    if sim > 0.75:
+
+                        today = datetime.now().strftime('%Y-%m-%d')
+                        time_now = datetime.now().strftime('%H:%M:%S')
 
                         cursor.execute(
-                            "INSERT INTO attendance VALUES (NULL,?,?,?)",
-                            (emp_id, today, time_now)
+                            "SELECT * FROM attendance WHERE employee_id=? AND date=?",
+                            (emp_id, today)
                         )
 
-                        conn.commit()
-                        st.success(f"✅ Attendance marked for {emp_id}")
+                        if not cursor.fetchone():
+
+                            cursor.execute(
+                                "INSERT INTO attendance VALUES (NULL,?,?,?)",
+                                (emp_id, today, time_now)
+                            )
+
+                            conn.commit()
+                            st.success(f"✅ Attendance marked for {emp_id}")
+
+                        else:
+                            st.warning(f"⚠ Attendance already marked for {emp_id}")
+
                         recognized = True
+                        break
 
-                    else:
-                        st.warning(f"⚠ Attendance already marked for {emp_id}")
-                        recognized = True
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            stframe.image(rgb, channels="RGB")
 
-                    break
+            if recognized:
+                break
 
-        # Show frame in Streamlit
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        stframe.image(rgb, channels="RGB")
-
-        if recognized:
-            break
-
-    cap.release()
-    cv2.destroyAllWindows()
+        cap.release()
 
     return recognized
