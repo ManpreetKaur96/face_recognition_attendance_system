@@ -2,7 +2,6 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 import datetime
-import db
 
 from register import register_employee
 from attendance import mark_attendance
