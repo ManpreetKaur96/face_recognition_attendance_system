@@ -1,10 +1,8 @@
-import os
+import sqlite3
 import cv2
 import numpy as np
-import sqlite3
 import datetime
 import streamlit as st
-import time
 
 from detector import detect_face
 from embedding import get_embedding
@@ -21,88 +19,30 @@ def register_employee(emp_id, name, address, email, dob):
         conn.close()
         return
 
-    embeddings = []
+    st.info("Capture face using camera")
 
-    # CLOUD MODE
-    if os.environ.get("STREAMLIT_SERVER_PORT"):
+    image = st.camera_input("Take a photo")
 
-        st.info("Capture face using browser camera")
+    if image is None:
+        st.warning("Please capture an image")
+        return
 
-        image = st.camera_input("Take a photo")
+    file_bytes = np.asarray(bytearray(image.read()), dtype=np.uint8)
+    frame = cv2.imdecode(file_bytes, 1)
 
-        if image is None:
-            st.warning("Please capture an image")
-            return
+    face = detect_face(frame)
 
-        file_bytes = np.asarray(bytearray(image.read()), dtype=np.uint8)
-        frame = cv2.imdecode(file_bytes, 1)
+    if face is None:
+        st.error("No face detected")
+        return
 
-        face = detect_face(frame)
+    embedding = get_embedding(face)
 
-        if face is None:
-            st.error("No face detected")
-            return
+    if embedding is None:
+        st.error("Embedding failed")
+        return
 
-        embedding = get_embedding(face)
-
-        if embedding is None:
-            st.error("Embedding failed")
-            return
-
-        embeddings = [embedding] * 15
-
-    # LOCAL MODE
-    else:
-
-        cap = cv2.VideoCapture(0)
-
-        if not cap.isOpened():
-            st.error("Unable to access camera")
-            return
-
-        count = 0
-        time.sleep(2)
-
-        while count < 15:
-
-            ret, frame = cap.read()
-
-            if not ret:
-                continue
-
-            face = detect_face(frame)
-
-            if face is not None:
-
-                embedding = get_embedding(face)
-
-                if embedding is not None:
-                    embeddings.append(embedding)
-                    count += 1
-
-                    cv2.putText(
-                        frame,
-                        f"Capturing {count}/15",
-                        (20, 40),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        1,
-                        (0, 255, 0),
-                        2
-                    )
-
-            cv2.imshow("Register Face", frame)
-
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-
-        cap.release()
-        cv2.destroyAllWindows()
-
-        if len(embeddings) < 10:
-            st.error("Face capture failed")
-            return
-
-    mean_embedding = np.mean(embeddings, axis=0)
+    mean_embedding = embedding
 
     registration_date = datetime.date.today()
     registration_time = datetime.datetime.now().strftime("%H:%M:%S")
