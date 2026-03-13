@@ -73,3 +73,4 @@ def register_employee(emp_id, name, address, email, dob):
     conn.close()
 
     st.success("✅ Employee registered successfully!")
+    st.balloons()
