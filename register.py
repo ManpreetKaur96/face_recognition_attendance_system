@@ -13,40 +13,44 @@ def register_employee(emp_id, name, address, email, dob):
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
 
+    # Check if employee already exists
     cursor.execute("SELECT * FROM employees WHERE employee_id=?", (emp_id,))
     if cursor.fetchone():
         st.error("Employee ID already exists!")
         conn.close()
         return
 
-    st.info("Capture face using camera")
+    st.info("📷 Capture face using camera")
 
+    # Browser camera input
     image = st.camera_input("Take a photo")
 
     if image is None:
         st.warning("Please capture an image")
         return
 
+    # Convert image to OpenCV format
     file_bytes = np.asarray(bytearray(image.read()), dtype=np.uint8)
     frame = cv2.imdecode(file_bytes, 1)
 
+    # Detect face
     face = detect_face(frame)
 
     if face is None:
-        st.error("No face detected")
+        st.error("No face detected. Please try again.")
         return
 
+    # Generate embedding
     embedding = get_embedding(face)
 
     if embedding is None:
-        st.error("Embedding failed")
+        st.error("Face embedding failed")
         return
-
-    mean_embedding = embedding
 
     registration_date = datetime.date.today()
     registration_time = datetime.datetime.now().strftime("%H:%M:%S")
 
+    # Insert employee into database
     cursor.execute(
         """
         INSERT INTO employees 
@@ -59,7 +63,7 @@ def register_employee(emp_id, name, address, email, dob):
             address,
             email,
             dob,
-            mean_embedding.tobytes(),
+            embedding.tobytes(),
             registration_date,
             registration_time
         )
@@ -68,4 +72,4 @@ def register_employee(emp_id, name, address, email, dob):
     conn.commit()
     conn.close()
 
-    st.success("Employee registered successfully")
+    st.success("✅ Employee registered successfully!")

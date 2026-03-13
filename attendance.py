@@ -22,26 +22,37 @@ def mark_attendance():
         st.warning("No employees registered")
         return False
 
+    # Load known embeddings
     known = [(d[0], np.frombuffer(d[1], dtype=np.float32)) for d in data]
 
-    # Browser camera (works locally and on Streamlit Cloud)
-    image = st.camera_input("Capture Face for Attendance")
+    st.info("📷 Capture face for attendance")
+
+    # Browser camera input
+    image = st.camera_input("Take a photo for attendance")
 
     if image is None:
-        st.info("Please capture a photo")
+        st.warning("Please capture a photo")
         return False
 
+    # Convert image to OpenCV format
     file_bytes = np.asarray(bytearray(image.read()), dtype=np.uint8)
     frame = cv2.imdecode(file_bytes, 1)
 
+    # Detect face
     face = detect_face(frame)
 
     if face is None:
         st.warning("Face not detected")
         return False
 
+    # Generate embedding
     emb = get_embedding(face)
 
+    if emb is None:
+        st.error("Face embedding failed")
+        return False
+
+    # Compare with known embeddings
     for emp_id, known_emb in known:
 
         sim = cosine_similarity(emb, known_emb)
@@ -64,12 +75,12 @@ def mark_attendance():
                 )
 
                 conn.commit()
-                st.success(f"Attendance marked for {emp_id}")
+                st.success(f"✅ Attendance marked for {emp_id}")
 
             else:
-                st.warning(f"Attendance already marked for {emp_id}")
+                st.warning(f"⚠ Attendance already marked for {emp_id}")
 
             return True
 
-    st.error("Face not recognized")
+    st.error("❌ Face not recognized")
     return False
